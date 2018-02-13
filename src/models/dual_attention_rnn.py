@@ -1,6 +1,6 @@
 """
 
-   Project : gresearch
+   Project : stock_prediction
    dual_attention_rnn.py created by Louise Naud
    On : 1/29/18
    At : 19:10
@@ -9,9 +9,7 @@
 import torch
 from torch import nn
 from torch.autograd import Variable
-from torch import optim
 import torch.nn.functional as F
-from torch.optim import lr_scheduler
 
 
 class InputAttentionEncoder(nn.Module):
@@ -63,8 +61,6 @@ class InputAttentionEncoder(nn.Module):
             attn_weights = F.softmax(x.view(-1, self.input_dim).type_as(x))  # batch_size * input_dim, attn weights with values sum up to 1.
             # Eqn. 10: LSTM
             weighted_input = torch.mul(attn_weights, input_batch_f[:, t, :]).type_as(x) # batch_size * input_dim
-            # Fix the warning about non-contiguous memory
-            # see https://discuss.pytorch.org/t/dataparallel-issue-with-flatten-parameter/8282
             self.lstm_unit.flatten_parameters()
             _, lstm_states = self.lstm_unit(weighted_input.unsqueeze(0), (hidden, cell))
             hidden = lstm_states[0]

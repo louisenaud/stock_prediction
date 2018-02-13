@@ -61,7 +61,7 @@ class ProximalQuadraticForm(nn.Module):
         :param tau: PyTorch Variable, [1]
         :return: PyTorch Variable, [1xM*N]
         """
-        P = tau.expand_as(H) * H + torch.eye(H.size())
+        P = tau.expand_as(H) * H + Variable(torch.eye(H.size()[0])).type_as(H)
         P_inv = torch.inverse(P)
-        X = x - tau.expandas(b) * b
+        X = x.view(-1, 1) - tau.expand_as(b) * b
         return P_inv.matmul(X)

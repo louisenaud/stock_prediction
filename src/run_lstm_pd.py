@@ -1,9 +1,9 @@
 """
 Project:    stock_prediction
-File:       run.py
+File:       run_lstm_pd.py
 Created by: louise
-On:         02/02/18
-At:         2:22 PM
+On:         07/02/18
+At:         4:42 PM
 """
 import torch
 from torch import nn
@@ -17,7 +17,7 @@ from tensorboardX import SummaryWriter
 import numpy as np
 import matplotlib.pyplot as plt
 
-from lstm import LSTM
+from lstm import PD_LSTM
 from data import SP500
 
 
@@ -28,23 +28,23 @@ if __name__ == "__main__":
 
     # Parameters
     learning_rate = 0.001
-    batch_size = 16
+    batch_size = 4
     display_step = 100
-    max_epochs = 10
-    symbols = ['AAPL', 'AMZN']#, AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
+    max_epochs = 1000
+    symbols = ['AAPL', 'AMZN', 'GOOGL']#, AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 10
+    T = 20
 
 
     # training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
                  symbols=symbols,
                  start_date='2013-01-01',
-                 end_date='2013-07-31',
+                 end_date='2013-04-30',
                  T=T,
                  step=1)
     train_loader = DataLoader(dset,
@@ -56,14 +56,18 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = LSTM(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+
+    H = 0.5* Variable(torch.ones(batch_size*n_hidden1*(T-1)).cuda())
+    b = Variable(torch.ones((batch_size*n_hidden1*(T-1), 1))).cuda()
+    model = PD_LSTM(H, b, hidden_size=128, num_securities=n_stocks, dropout=0.0, training=True, max_it=5).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
-
+    writer.add_graph(PD_LSTM, model)
     # loss function
     criterion = nn.MSELoss(size_average=False).cuda()
 
     losses = []
+    Hs = np.zeros((max_epochs, H.size()[0]))
     it = 0
     for i in range(max_epochs):
         loss_ = 0.
@@ -77,7 +81,7 @@ if __name__ == "__main__":
                 target = target.cuda()
             optimizer.zero_grad()
             if target.data.size()[1] == batch_size:
-                output = model(data)
+                output = model(data, data)
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
                 loss.backward()
@@ -90,11 +94,14 @@ if __name__ == "__main__":
         print("Epoch = ", i)
         print("Loss = ", loss_)
         losses.append(loss_)
+        Hs[i, :] = model.H.data.cpu().numpy()
+        writer.add_histogram('H', model.H.data.cpu().numpy(), i)
+        #Hs.append(model.H.data.cpu().numpy())
         writer.add_scalar("loss_epoch", loss_, i)
 
         scheduler_model.step()
         # Plot current predictions
-        if i % 20 == 0:
+        if i % 200 == 0:
             predicted = np.array(predicted).reshape(-1, 1)
             gt = np.array(gt).reshape(-1, 1)
             x = np.array(range(predicted.shape[0]))
@@ -115,7 +122,7 @@ if __name__ == "__main__":
     # Check
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
-    batch_size_pred = 4
+    batch_size_pred = batch_size
     dtest = SP500('data/sandp500/individual_stocks_5yr',
                  symbols=symbols,
                  start_date='2013-01-01',
@@ -139,12 +146,10 @@ if __name__ == "__main__":
             data = data.cuda()
             target = target.cuda()
         if target.data.size()[0] == batch_size_pred:
-            output = model(data)
+            output = model(data, data)
             for k in range(batch_size_pred):
-                #print(output.data[0, k])
                 predicted1.append(output.data[k, 0])
                 predicted2.append(output.data[k, 1])
-                #print(target.data[0, :, k])
                 gt1.append(target.data[k, 0, 0])
                 gt2.append(target.data[k, 0, 1])
             k+=1
@@ -156,7 +161,6 @@ if __name__ == "__main__":
     x = np.array(range(pred.shape[0]))
     h = plt.figure()
     plt.plot(x, pred[:, 0], label="predictions")
-    #plt.plot(x, dtest.numpy_data[T-1:-1, 0], label='zizi')
     plt.plot(x, gt[:, 0], label="true")
     plt.legend()
     plt.show()

@@ -1,9 +1,9 @@
 """
 Project:    stock_prediction
-File:       run.py
+File:       run_attention_rnn.py
 Created by: louise
-On:         02/02/18
-At:         2:22 PM
+On:         08/02/18
+At:         12:53 PM
 """
 import torch
 from torch import nn
@@ -17,7 +17,7 @@ from tensorboardX import SummaryWriter
 import numpy as np
 import matplotlib.pyplot as plt
 
-from lstm import LSTM
+from models.dual_attention_rnn import DualAttentionRNN
 from data import SP500
 
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 10
+    T = 30
 
 
     # training data
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = LSTM(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+    model = DualAttentionRNN(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
 

@@ -129,9 +129,9 @@ class GeneralLinearOperator(nn.Module):
         :param x: PyTorch Variable [1xMxN], primal variable.
         :return: PyTorch Variable [2xMxN], output of learned linear operator
         """
-        z = Variable(x.data.unsqueeze(0)).cuda()
+        z = Variable(x.data.unsqueeze(1)).cuda()
         z = self.conv1(z)
-        y = Variable(z.data.squeeze(0).cuda())
+        y = Variable(z.data.squeeze(1).cuda())
         return y
 
 
@@ -149,7 +149,7 @@ class GeneralLinearAdjointOperator(nn.Module):
         :param x: PyTorch Variable [2xMxN], primal variable.
         :return: PyTorch Variable [1xMxN], output of learned linear operator
         """
-        z = Variable(y.data.unsqueeze(0)).cuda()
+        z = Variable(y.data).type_as(y)
         z = self.conv1(z)
-        x = Variable(z.data.squeeze(0).cuda())
+        x = Variable(z.data).type_as(y)
         return x

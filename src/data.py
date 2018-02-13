@@ -22,7 +22,7 @@ random.seed(time.time())
 
 class SP500(Dataset):
     def __init__(self, folder_dataset, T=10, symbols=['AAL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
-                 end_date='2015-12-31'):
+                 end_date='2015-12-31', step=1):
         """
 
         :param folder_dataset: str
@@ -70,7 +70,7 @@ class SP500(Dataset):
         self.numpy_data = self.df_data.as_matrix(columns=self.symbols)
         self.train_data = self.scaler.fit_transform(self.numpy_data)
 
-        self.chunks = torch.FloatTensor(self.train_data).unfold(0, self.T, 1).permute(0, 2, 1)
+        self.chunks = torch.FloatTensor(self.train_data).unfold(0, self.T, step).permute(0, 2, 1)
 
     def __getitem__(self, index):
 

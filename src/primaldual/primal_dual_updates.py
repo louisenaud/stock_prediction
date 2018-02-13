@@ -120,24 +120,24 @@ class DualWeightedUpdate(nn.Module):
 
 
 class PrimalGeneralUpdate(nn.Module):
-    def __init__(self, lambda_rof, tau):
+    def __init__(self, tau):
         super(PrimalGeneralUpdate, self).__init__()
-        self.backward_div = GeneralLinearAdjointOperator()
         self.tau = tau
-        self.lambda_rof = lambda_rof
 
-    def forward(self, x, y, sig_obs, dtype=torch.cuda.FloatTensor):
+    def forward(self, x, Ladjy):
         """
         Computes General quadratic primal update.
         :param x: PyTorch Variable, [1xMxN]
-        :param y: PyTorch Variable, [2xMxN]
-        :param sig_obs: PyTorch Variable [1xMxN]
+        :param Ladjy: PyTorch Variable, [1xMxN]
         :param dtype: Tensor type
         :return: PyTorch Variable, [1xMxN]
         """
-        x = (x + self.tau * self.backward_div.forward(y, dtype) +
-             self.lambda_rof * self.tau * sig_obs) / (1.0 + self.lambda_rof * self.tau)
-        return x
+        tt = self.tau.expand_as(Ladjy)
+        bite = x.permute(1, 0, 2).unsqueeze(1)
+        xx = x.permute(1, 0, 2).unsqueeze(1) - \
+             self.tau.expand_as(Ladjy) * Ladjy
+
+        return xx
 
 
 class DualGeneralUpdate(nn.Module):
@@ -147,17 +147,16 @@ class DualGeneralUpdate(nn.Module):
         :param sigma: Pytorch tensor [1]
         """
         super(DualGeneralUpdate, self).__init__()
-        self.forward_grad = GeneralLinearOperator()
         self.sigma = sigma
 
-    def forward(self, x_tilde, y):
+    def forward(self, Lx, y):
         """
         Computes General quadratic Dual Update.
-        :param x_tilde: PyTorch Variable, [1xMxN]
+        :param Lx: PyTorch Variable, [2xMxN]
         :param y: PyTorch Variable, [2xMxN]
         :return: PyTorch Variable, [2xMxN]
         """
 
-        y = y + self.sigma * self.forward_grad.forward(x_tilde).type_as(x_tilde)
+        y = y + self.sigma * Lx
         return y
 
