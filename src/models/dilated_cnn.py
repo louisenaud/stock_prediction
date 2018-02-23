@@ -1,13 +1,16 @@
 """
 Project:    stock_prediction
-File:       lstm.py
+File:       dilated_cnn.py
 Created by: louise
-On:         08/02/18
-At:         12:55 PM
+On:         20/02/18
+At:         1:42 PM
 """
 import torch
 from torch import nn
 from torch.autograd import Variable
+import torch.nn.functional as F
+
+import numpy as np
 
 
 class LSTM(nn.Module):

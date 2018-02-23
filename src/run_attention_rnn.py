@@ -56,7 +56,7 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = DualAttentionRNN(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+    model = DualAttentionRNN(n_stocks, encoder_hidden_dim=n_hidden1, decoder_hidden_dim=64, T=T).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
                 target = target.cuda()
             optimizer.zero_grad()
             if target.data.size()[1] == batch_size:
-                output = model(data)
+                output = model(data, data)
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
                 loss.backward()

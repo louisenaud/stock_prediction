@@ -5,23 +5,17 @@ Created by: louise
 On:         25/01/18
 At:         4:56 PM
 """
-
-import random
-import time
 import os
-import math
 
 import torch
 from torch.utils.data.dataset import Dataset
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 
 import pandas as pd
-random.seed(time.time())
 
 
 class SP500(Dataset):
-    def __init__(self, folder_dataset, T=10, symbols=['AAL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
+    def __init__(self, folder_dataset, T=10, symbols=['AAPL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
                  end_date='2015-12-31', step=1):
         """
 
@@ -64,7 +58,7 @@ class SP500(Dataset):
             df_current = df_current.rename(columns={'Close': symbol})
             self.df_data = self.df_data.join(df_current)
 
-        # Replace NAN values with forward then backward filling
+        # Replace NaN values with forward then backward filling
         self.df_data.fillna(method='ffill', inplace=True, axis=0)
         self.df_data.fillna(method='bfill', inplace=True, axis=0)
         self.numpy_data = self.df_data.as_matrix(columns=self.symbols)

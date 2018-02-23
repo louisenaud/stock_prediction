@@ -47,13 +47,13 @@ class InputAttentionEncoder(nn.Module):
         xx = input_batch[:, 0:self.T-1, :].contiguous()
         input_batch_f = input_batch.type(torch.cuda.FloatTensor)
         for t in range(self.T - 1):
-            h = hidden.repeat(self.input_dim, 1, 1)
-            c = cell.repeat(self.input_dim, 1, 1)
-            xxx = xx.permute(0, 2, 1)
+            h = hidden.repeat(self.input_dim, 1, 1).permute(1, 0, 2)
+            c = cell.repeat(self.input_dim, 1, 1).permute(1, 0, 2)
+            xxx = xx.permute(1, 2, 0)
             # Concatenate hidden states with each predictor
             x = torch.cat((hidden.repeat(self.input_dim, 1, 1).permute(1, 0, 2),
                            cell.repeat(self.input_dim, 1, 1).permute(1, 0, 2),
-                           xx.permute(0, 2, 1)),
+                           xx.permute(1, 2, 0)),
                           dim=2)  # batch_size * input_dim * (2*hidden_dim + T - 1)
             # Attention weights
             x = self.attn_linear(x)  # (batch_size * input_dim) * 1
@@ -76,6 +76,7 @@ class InputAttentionEncoder(nn.Module):
         :param x:
         :return:
         """
+
         return Variable(input_batch.data.new(1, input_batch.size(0), self.hidden_dim).zero_())
 
 

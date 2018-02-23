@@ -111,7 +111,7 @@ if __name__ == "__main__":
             plt.legend()
             plt.show()
 
-    torch.save(model, 'prout.pkl')
+    torch.save(model, 'prout_bite.pkl')
 
     h = plt.figure()
     x = xrange(len(losses))
