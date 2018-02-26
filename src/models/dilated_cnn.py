@@ -13,8 +13,8 @@ import torch.nn.functional as F
 import numpy as np
 
 
-class LSTM(nn.Module):
-    def __init__(self, hidden_size=64, hidden_size2=128, num_securities=5, dropout=0.2, n_layers=8, T=10, training=True):
+class DilatedNet(nn.Module):
+    def __init__(self, num_securities=5, n_layers=8, T=10, training=True):
         """
 
         :param hidden_size: int
@@ -22,23 +22,24 @@ class LSTM(nn.Module):
         :param dropout: float
         :param training: bool
         """
-        super(LSTM, self).__init__()
+        super(DilatedNet, self).__init__()
         self.training = training
-        self.hidden_size = hidden_size
-        self.hidden_size2 = hidden_size2
-        self.rnn = nn.LSTM(
-            input_size=num_securities,
-            hidden_size=self.hidden_size,
-            num_layers=n_layers,
-            dropout=dropout,
-            bidirectional=False
-        )
+        self.dilation = 2
+        # First Layer
+        # Input
+        self.dilated_conv1 = nn.Conv1d(1, 1, kernel_size=num_securities, dilation=2)
+        self.relu1 = nn.ReLU()
+        # conditionnal branch
+        self.dilated_conv_cond = nn.Conv1d(num_securities-1, 1, kernel_size=num_securities-1, dilation=2)
+        self.relu_cond = nn.ReLU()
 
-        self.fc1 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc1.weight.data.normal_()
-        self.fc3 = nn.Linear(self.hidden_size, 10)
-        self.fc2 = nn.Linear(10, num_securities)
-        self.relu = nn.ReLU()
+        # Layer 2
+        self.dilated_conv2 = nn.Conv1d(1, 1, dilation=2)
+        self.relu2 = nn.ReLU()
+
+        # Output layer
+        self.conv_final = nn.Conv1d(1, 1)
+
         self.T = T
 
     def forward(self, x):
@@ -49,16 +50,27 @@ class LSTM(nn.Module):
         """
         batch_size = x.size()[1]
         seq_length = x.size()[0]
-
+        # Make sure x has the right dimensions
         x = x.view(seq_length, batch_size, -1)
+        xx = x[:, :, 0]
+        xy = x[:, :, 1:]
+        # First layer
+        out = self.dilated_conv1(xx)
+        out = self.relu1(out)
+        out += xx
 
-        # Initial cell states
-        h0 = Variable(torch.zeros(self.rnn.num_layers, batch_size, self.hidden_size)).cuda()
-        c0 = Variable(torch.zeros(self.rnn.num_layers, batch_size, self.hidden_size)).cuda()
-        outputs, (ht, ct) = self.rnn(x, (h0, c0))
-        out = outputs[-1]  # last prediction
-        out = self.fc1(out)
-        out = self.fc3(out)
-        out = self.relu(out)
-        out = self.fc2(out)
+        # Conditional branch
+        out_c = self.dilated_conv_cond(xy)
+        out_c = self.relu_cond(out_c)
+        out_c += xy
+        # conditionning
+        out = out + out_c
+
+        # Layer 2:
+        out = self.dilated_conv2(out)
+        out = self.relu2(out)
+
+        # Final layer
+        out = self.conv_final(out)
+
         return out

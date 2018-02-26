@@ -1,10 +1,11 @@
 """
 Project:    stock_prediction
-File:       run.py
+File:       run_dilated_net.py
 Created by: louise
-On:         02/02/18
-At:         2:22 PM
+On:         26/02/18
+At:         3:45 PM
 """
+
 import torch
 from torch import nn
 from torch.autograd import Variable
@@ -19,7 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from itertools import repeat
 
-from lstm import LSTM
+from models.dilated_cnn import DilatedNet
 from data import SP500
 
 
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = LSTM(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+    model = DilatedNet(num_securities=n_stocks, n_layers=2, T=T, training=True).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
 
