@@ -32,15 +32,15 @@ if __name__ == "__main__":
     # Parameters
     learning_rate = 0.001
     batch_size = 16
-    display_step = 500
-    max_epochs = 500
-    symbols = ['GOOGL']# AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
+    display_step = 1000
+    max_epochs = 1000
+    symbols = ['GOOGL', 'AAPL', 'AMZN']# AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 10
+    T = 30
 
     # training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         predicted = []
         gt = []
         for batch_idx, (data, target) in enumerate(train_loader):
-            data = Variable(data.permute(1, 0, 2)).contiguous()
+            data = Variable(data.permute(0, 2, 1)).contiguous()
             target = Variable(target.unsqueeze_(0))
             if use_cuda:
                 data = data.cuda()
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     k = 0
     # Predictions
     for batch_idx, (data, target) in enumerate(test_loader):
-        data = Variable(data.permute(1, 0, 2)).contiguous()
+        data = Variable(data.permute(0, 2, 1)).contiguous()
         target = Variable(target.unsqueeze_(1))
         if use_cuda:
             data = data.cuda()

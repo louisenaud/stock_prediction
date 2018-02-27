@@ -33,7 +33,7 @@ if __name__ == "__main__":
     batch_size = 16
     display_step = 500
     max_epochs = 500
-    symbols = ['GOOGL']# AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
+    symbols = ['GOOGL', 'AAPL', 'AMZN']# AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
