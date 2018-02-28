@@ -1,9 +1,9 @@
 """
 Project:    stock_prediction
-File:       run_dilated_net.py
+File:       run_dilated_convnet2D.py
 Created by: louise
 On:         26/02/18
-At:         3:45 PM
+At:         5:34 PM
 """
 
 import torch
@@ -22,7 +22,7 @@ import matplotlib.dates as mdates
 from matplotlib.dates import MonthLocator, DateFormatter
 from itertools import repeat
 
-from models.dilated_cnn import DilatedNet
+from models.dilated_cnn import DilatedNet2D
 from data import SP500
 
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = DilatedNet(num_securities=n_stocks, T=T, training=True).cuda()
+    model = DilatedNet2D(num_securities=n_stocks, T=T, training=True).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         predicted = []
         gt = []
         for batch_idx, (data, target) in enumerate(train_loader):
-            data = Variable(data.permute(0, 2, 1)).contiguous()
+            data = Variable(data.permute(0, 2, 1)).unsqueeze_(1).contiguous()
             target = Variable(target.unsqueeze_(0))
             if use_cuda:
                 data = data.cuda()
@@ -89,8 +89,8 @@ if __name__ == "__main__":
                 loss.backward()
                 optimizer.step()
                 for k in range(batch_size):
-                    predicted.append(output.data[k, 0])
-                    gt.append(target.data[:, k, 0])
+                    predicted.append(output.data[k, 0, :].cpu().numpy())
+                    gt.append(target.data[:, k, 0].cpu().numpy())
             it += 1
 
         print("Epoch = ", i)
@@ -100,9 +100,9 @@ if __name__ == "__main__":
 
         scheduler_model.step()
         # Plot current predictions
-        if i % 20 == 0:
-            predicted = np.array(predicted).reshape(-1, 1)
-            gt = np.array(gt).reshape(-1, 1)
+        if i % display_step == 0:
+            predicted = np.array(predicted)
+            gt = np.array(gt)
             x = np.array(range(predicted.shape[0]))
             h = plt.figure()
             plt.plot(x, predicted[:, 0], label="predictions")
@@ -110,7 +110,7 @@ if __name__ == "__main__":
             plt.legend()
             plt.show()
 
-    torch.save(model, 'dilated_net_1d.pkl')
+    torch.save(model, 'prout.pkl')
 
     h = plt.figure()
     x = xrange(len(losses))
@@ -142,20 +142,21 @@ if __name__ == "__main__":
     k = 0
     # Predictions
     for batch_idx, (data, target) in enumerate(test_loader):
-        data = Variable(data.permute(0, 2, 1)).contiguous()
+        data = Variable(data.permute(0, 2, 1)).unsqueeze_(1).contiguous()
         target = Variable(target.unsqueeze_(1))
         if use_cuda:
             data = data.cuda()
             target = target.cuda()
+        k = 0
         if target.data.size()[0] == batch_size_pred:
             output = model(data)
-            for k in range(batch_size_pred):
+            for i in range(batch_size_pred):
                 s = 0
                 for stock in symbols:
-                    predictions[s].append(output.data[k, s])
-                    gts[s].append(target.data[k, 0, s])
+                    predictions[s].append(output.data[i, 0, s])
+                    gts[s].append(target.data[i, 0, s])
                     s += 1
-            k += 1
+                k += 1
 
     # Plot results
     # Convert lists to np array for plot, and rescaling to original data
@@ -167,14 +168,11 @@ if __name__ == "__main__":
         pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
         gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
 
-    x = np.array(range(pred.shape[0]))
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
     x = np.array(x)
     months = MonthLocator(range(1, 10), bymonthday=1, interval=1)
     monthsFmt = DateFormatter("%b '%y")
-
     s = 0
-    # Plot and save each plot
     for stock in symbols:
         fig, ax = plt.subplots()
         plt.plot(x, pred[:, s], label="predictions", color=cm.Blues(300))
