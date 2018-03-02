@@ -32,14 +32,15 @@ if __name__ == "__main__":
     learning_rate = 0.001
     batch_size = 16
     display_step = 500
-    max_epochs = 500
-    symbols = ['GOOGL', 'AAPL', 'AMZN']# AAPL, 'GOOG', 'GOOGL', 'FB', 'AMZN']
+    max_epochs = 1000
+    symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
     T = 10
+    n_step_data = 10
 
     # training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
@@ -175,5 +176,36 @@ if __name__ == "__main__":
         plt.xlabel("Time (2013-01-01 to 2013-10-31)")
         plt.ylabel("Stock Price")
         plt.legend()
+        plt.show()
+        s += 1
+
+# Plot results
+    # Convert lists to np array for plot, and rescaling to original data
+    if len(symbols) == 1:
+        pred = dtest.scaler.inverse_transform(np.array(predictions[0]).reshape((len(predictions[0]), 1)))
+        gt = dtest.scaler.inverse_transform(np.array(gts[0]).reshape(len(gts[0]), 1))
+    if len(symbols) >= 2:
+        p = np.array(predictions)
+        pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
+        gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
+
+    x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
+    x = np.array(x)
+    months = MonthLocator(range(1, 10), bymonthday=1, interval=3)
+    monthsFmt = DateFormatter("%b '%y")
+    s = 0
+    for stock in symbols:
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+        plt.plot(x, pred[:, s], label="predictions", color=cm.Blues(300))
+        plt.plot(x, gt[:, s], label="true", color=cm.Blues(100))
+        ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
+        ax.xaxis.set_major_locator(months)
+        ax.xaxis.set_major_formatter(monthsFmt)
+        plt.title(stock)
+        plt.xlabel("Time")
+        plt.ylabel("Stock Price")
+        plt.legend()
+        fig.autofmt_xdate()
+        plt.savefig(stock + '.png')
         plt.show()
         s += 1

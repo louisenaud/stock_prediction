@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # Parameters
     learning_rate = 0.001
     batch_size = 16
-    display_step = 500
+    display_step = 200
     max_epochs = 1000
     symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
     n_stocks = len(symbols)
@@ -42,17 +42,23 @@ if __name__ == "__main__":
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 30
+    T = 20
     start_date = '2013-01-01'
-    end_date = '2013-10-31'
+    end_date = '2013-12-31'
+    n_step_data = 10
+
+    fn_base = "nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
+              "_" + end_date
+
+    print(fn_base)
 
     # training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
                  symbols=symbols,
-                 start_date='2013-01-01',
-                 end_date='2013-07-31',
+                 start_date=start_date,
+                 end_date=end_date,
                  T=T,
-                 step=1)
+                 step=n_step_data)
     train_loader = DataLoader(dset,
                               batch_size=batch_size,
                               shuffle=True,
@@ -64,10 +70,10 @@ if __name__ == "__main__":
     # Network Parameters
     model = DilatedNet2D(num_securities=n_stocks, T=T, training=True).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
-    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
+    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
     # loss function
-    criterion = nn.MSELoss(size_average=True).cuda()
+    criterion = nn.MSELoss(size_average=False).cuda()
 
     losses = []
     it = 0
@@ -110,11 +116,14 @@ if __name__ == "__main__":
             plt.legend()
             plt.show()
 
-    torch.save(model, 'prout.pkl')
+    torch.save(model, 'conv2d_' + fn_base + '.pkl')
 
     h = plt.figure()
     x = xrange(len(losses))
     plt.plot(x, np.array(losses), label="loss")
+    plt.xlabel("Time")
+    plt.ylabel("Stock Price")
+    plt.savefig("loss_" + fn_base + '.png')
     plt.legend()
     plt.show()
 
@@ -122,11 +131,15 @@ if __name__ == "__main__":
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     batch_size_pred = 4
+    #symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
+
     # Create test data set
+    start_date = '2013-01-01'
+    end_date = '2017-10-31'
     dtest = SP500('data/sandp500/individual_stocks_5yr',
                  symbols=symbols,
-                 start_date='2013-01-01',
-                 end_date='2013-10-31',
+                 start_date=start_date,
+                 end_date=end_date,
                  T=T)
     test_loader = DataLoader(dtest,
                               batch_size=batch_size_pred,
@@ -170,21 +183,21 @@ if __name__ == "__main__":
 
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
     x = np.array(x)
-    months = MonthLocator(range(1, 10), bymonthday=1, interval=1)
+    months = MonthLocator(range(1, 10), bymonthday=1, interval=3)
     monthsFmt = DateFormatter("%b '%y")
     s = 0
     for stock in symbols:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
         plt.plot(x, pred[:, s], label="predictions", color=cm.Blues(300))
         plt.plot(x, gt[:, s], label="true", color=cm.Blues(100))
         ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
         ax.xaxis.set_major_locator(months)
         ax.xaxis.set_major_formatter(monthsFmt)
         plt.title(stock)
-        plt.xlabel("Time (2013-01-01 to 2013-10-31)")
+        plt.xlabel("Time")
         plt.ylabel("Stock Price")
         plt.legend()
         fig.autofmt_xdate()
-        plt.savefig(stock + '.png')
+        plt.savefig(stock + "_" + fn_base + '.png')
         plt.show()
         s += 1
