@@ -78,7 +78,7 @@ class SP500(Dataset):
 
 class SP500Multistep(Dataset):
     def __init__(self, folder_dataset, T=10, symbols=['AAPL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
-                 end_date='2015-12-31', step=1, n_in=5, n_out=5):
+                 end_date='2015-12-31', step=1, n_in=5, n_out=3):
         """
 
         :param folder_dataset: str
@@ -126,15 +126,20 @@ class SP500Multistep(Dataset):
         self.numpy_data = self.df_data.as_matrix(columns=self.symbols)
         self.train_data = self.scaler.fit_transform(self.numpy_data)
 
-        self.chunks_data = torch.FloatTensor(self.train_data).unfold(0, n_in, step).permute(0, 2, 1)
-        self.chunks_target = torch.FloatTensor(self.train_data).unfold(n_in, n_out, step).permute(0, 2, 1)
+        self.chunks = []
+        self.chunks_data = torch.FloatTensor(self.train_data).unfold(0, n_in, step)
+        data_tmp = self.train_data[n_in:, :]
+        self.chunks_target = torch.FloatTensor(data_tmp).unfold(0, n_out, step)
+        k = 0
+        while k < min(self.chunks_data.size(0), self.chunks_target.size(0)):
+            self.chunks.append([self.chunks_data[k, :, :], self.chunks_target[k, :, :]])
+            k += 1
 
     def __getitem__(self, index):
-
-        x = self.chunks[index, :-1, :]
-        y = self.chunks[index, -1, :]
+        x = torch.FloatTensor(self.chunks[index][0])
+        y = torch.FloatTensor(self.chunks[index][1])
         return x, y
 
     def __len__(self):
-        return self.chunks.size(0)
+        return len(self.chunks)
 

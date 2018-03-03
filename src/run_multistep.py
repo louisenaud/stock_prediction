@@ -1,10 +1,11 @@
 """
 Project:    stock_prediction
-File:       run.py
+File:       run_multistep.py
 Created by: louise
-On:         02/02/18
-At:         2:22 PM
+On:         02/03/18
+At:         11:36 AM
 """
+
 import torch
 from torch import nn
 from torch.autograd import Variable
@@ -21,8 +22,39 @@ import matplotlib.dates as mdates
 from matplotlib.dates import MonthLocator, DateFormatter
 from itertools import repeat
 
-from lstm import LSTM
-from data import SP500
+from models.dilated_cnn import DilatedNet2DMultistep, DilatedNet2D
+from data import SP500Multistep
+
+
+# plot the forecasts in the context of the original dataset
+def plot_forecasts(gt, predicted, n_test):
+    """
+
+    :param gt:
+    :param predicted:
+    :param n_test:
+    :return:
+    """
+    predicted = np.array(predicted)
+    gt = np.array(gt)
+    # plot the forecasts in red
+    for i in range(predicted.shape[0]):
+        off_s = len(series) - n_test + i - 1
+        off_e = off_s + len(forecasts[i]) + 1
+        xaxis = [x for x in range(off_s, off_e)]
+        yaxis = [series.values[off_s]] + forecasts[i]
+        plt.plot(xaxis, yaxis, color='red')
+
+    predicted = np.array(predicted)
+    gt = np.array(gt)
+    x = np.array(range(predicted.shape[0]))
+    h = plt.figure()
+    plt.plot(x, predicted[:, 0], label="predictions")
+    plt.plot(x, gt[:, 0], label="true")
+    plt.legend()
+    plt.show()
+    # show the plot
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -33,29 +65,32 @@ if __name__ == "__main__":
     # Parameters
     learning_rate = 0.001
     batch_size = 16
-    display_step = 50
-    max_epochs = 1000
-    symbols = ['GOOGL', 'AAPL']
+    display_step = 100
+    max_epochs = 150
+    symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 10
-    n_step_data = 10
+    T = 20
     start_date = '2013-01-01'
     end_date = '2013-12-31'
+    n_step_data = T
 
-    fn_base = "lstm_nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + \
-              start_date + "_" + end_date
+    fn_base = "multi_step_nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
+              "_" + end_date
+
+    print(fn_base)
 
     # training data
-    dset = SP500('data/sandp500/individual_stocks_5yr',
-                 symbols=symbols,
-                 start_date=start_date,
-                 end_date=end_date,
-                 T=T,
-                 step=1)
+    dset = SP500Multistep('data/sandp500/individual_stocks_5yr',
+                          symbols=symbols,
+                          start_date=start_date,
+                          end_date=end_date,
+                          T=T,
+                          step=n_step_data,
+                          n_in=T)
     train_loader = DataLoader(dset,
                               batch_size=batch_size,
                               shuffle=False,
@@ -63,14 +98,14 @@ if __name__ == "__main__":
                               pin_memory=True  # CUDA only
                               )
     x, y = train_loader.dataset[0]
-    print(x.shape)
+    print(x)
     # Network Parameters
-    model = LSTM(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+    model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, training=True, n_in=T).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
-    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
+    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
     # loss function
-    criterion = nn.MSELoss(size_average=True).cuda()
+    criterion = nn.MSELoss(size_average=False).cuda()
 
     losses = []
     it = 0
@@ -79,21 +114,21 @@ if __name__ == "__main__":
         predicted = []
         gt = []
         for batch_idx, (data, target) in enumerate(train_loader):
-            data = Variable(data.permute(1, 0, 2)).contiguous()
-            target = Variable(target.unsqueeze_(0))
+            data = Variable(data).unsqueeze_(1).contiguous()
+            target = Variable(target.unsqueeze_(1))
             if use_cuda:
                 data = data.cuda()
                 target = target.cuda()
             optimizer.zero_grad()
-            if target.data.size()[1] == batch_size:
+            if target.data.size()[0] == batch_size:
                 output = model(data)
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
                 loss.backward()
                 optimizer.step()
                 for k in range(batch_size):
-                    predicted.append(output.data[k, 0])
-                    gt.append(target.data[:, k, 0])
+                    predicted.append(output.data[k, 0, :, :].cpu().numpy())
+                    gt.append(target.data[k, 0, :, :].cpu().numpy())
             it += 1
 
         print("Epoch = ", i)
@@ -104,20 +139,23 @@ if __name__ == "__main__":
         scheduler_model.step()
         # Plot current predictions
         if i % display_step == 0:
-            predicted = np.array(predicted).reshape(-1, 1)
-            gt = np.array(gt).reshape(-1, 1)
+            predicted = np.array(predicted)
+            gt = np.array(gt)
             x = np.array(range(predicted.shape[0]))
-            plt.figure()
+            h = plt.figure()
             plt.plot(x, predicted[:, 0], label="predictions")
             plt.plot(x, gt[:, 0], label="true")
             plt.legend()
             plt.show()
 
-    torch.save(model, 'lstm' + fn_base + '.pkl')
+    torch.save(model, 'conv2d_' + fn_base + '.pkl')
 
-    plt.figure()
+    h = plt.figure()
     x = xrange(len(losses))
     plt.plot(x, np.array(losses), label="loss")
+    plt.xlabel("Time")
+    plt.ylabel("Stock Price")
+    plt.savefig("loss_" + fn_base + '.png')
     plt.legend()
     plt.show()
 
@@ -125,14 +163,19 @@ if __name__ == "__main__":
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     batch_size_pred = 4
-    start_date = '2013-01-01'
-    end_date = '2015-12-31'
+    #symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
+
     # Create test data set
-    dtest = SP500('data/sandp500/individual_stocks_5yr',
-                  symbols=symbols,
-                  start_date=start_date,
-                  end_date=end_date,
-                  T=T)
+    start_date = '2013-01-01'
+    end_date = '2017-10-31'
+    dtest = SP500Multistep('data/sandp500/individual_stocks_5yr',
+                           symbols=symbols,
+                            start_date=start_date,
+                             end_date=end_date,
+                             T=T,
+                             step=n_step_data,
+                           n_in=T
+                           )
     test_loader = DataLoader(dtest,
                               batch_size=batch_size_pred,
                               shuffle=False,
@@ -147,33 +190,31 @@ if __name__ == "__main__":
     k = 0
     # Predictions
     for batch_idx, (data, target) in enumerate(test_loader):
-        data = Variable(data.permute(1, 0, 2)).contiguous()
+        data = Variable(data.permute(0, 2, 1)).unsqueeze_(1).contiguous()
         target = Variable(target.unsqueeze_(1))
         if use_cuda:
             data = data.cuda()
             target = target.cuda()
+        k = 0
         if target.data.size()[0] == batch_size_pred:
             output = model(data)
-            for k in range(batch_size_pred):
+            for i in range(batch_size_pred):
                 s = 0
                 for stock in symbols:
-                    predictions[s].append(output.data[k, s])
-                    gts[s].append(target.data[k, 0, s])
+                    predictions[s].append(output.data[i, 0, s, -1])
+                    gts[s].append(target.data[i, 0, s, -1])
                     s += 1
-            k += 1
-
+                k += 1
 
     # Plot results
     # Convert lists to np array for plot, and rescaling to original data
     if len(symbols) == 1:
         pred = dtest.scaler.inverse_transform(np.array(predictions[0]).reshape((len(predictions[0]), 1)))
         gt = dtest.scaler.inverse_transform(np.array(gts[0]).reshape(len(gts[0]), 1))
-    if len(symbols) == 2:  #TODO(Louise) automate this part
-        pred = dtest.scaler.inverse_transform(np.column_stack((predictions[0], predictions[1])))
-        gt = dtest.scaler.inverse_transform(np.column_stack((gts[0], gts[1])))
-    if len(symbols) == 3:
-        pred = dtest.scaler.inverse_transform(np.column_stack((predictions[0], predictions[1], predictions[2])))
-        gt = dtest.scaler.inverse_transform(np.column_stack((gts[0], gts[1], gts[2])))
+    if len(symbols) >= 2:
+        p = np.array(predictions)
+        pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
+        gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
 
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
     x = np.array(x)
@@ -195,4 +236,3 @@ if __name__ == "__main__":
         plt.savefig(stock + "_" + fn_base + '.png')
         plt.show()
         s += 1
-
