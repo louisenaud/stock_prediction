@@ -37,13 +37,13 @@ def plot_forecasts(gt, predicted, n_test):
     """
     predicted = np.array(predicted)
     gt = np.array(gt)
-    # plot the forecasts in red
+    # plot the forecasts in different colors
     for i in range(predicted.shape[0]):
         off_s = len(series) - n_test + i - 1
         off_e = off_s + len(forecasts[i]) + 1
         xaxis = [x for x in range(off_s, off_e)]
         yaxis = [series.values[off_s]] + forecasts[i]
-        plt.plot(xaxis, yaxis, color='red')
+        plt.plot(xaxis, yaxis)
 
     predicted = np.array(predicted)
     gt = np.array(gt)
@@ -66,17 +66,19 @@ if __name__ == "__main__":
     learning_rate = 0.001
     batch_size = 16
     display_step = 100
-    max_epochs = 150
+    max_epochs = 400
     symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 20
+    T = 10
     start_date = '2013-01-01'
     end_date = '2013-12-31'
-    n_step_data = T
+    n_step_data = 1
+    n_out = 5
+    n_in = T
 
     fn_base = "multi_step_nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
               "_" + end_date
@@ -90,7 +92,8 @@ if __name__ == "__main__":
                           end_date=end_date,
                           T=T,
                           step=n_step_data,
-                          n_in=T)
+                          n_in=T,
+                          n_out=5)
     train_loader = DataLoader(dset,
                               batch_size=batch_size,
                               shuffle=False,
@@ -100,7 +103,7 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x)
     # Network Parameters
-    model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, training=True, n_in=T).cuda()
+    model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, training=True, n_in=T, n_out=n_out).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 

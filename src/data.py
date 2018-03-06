@@ -78,7 +78,7 @@ class SP500(Dataset):
 
 class SP500Multistep(Dataset):
     def __init__(self, folder_dataset, T=10, symbols=['AAPL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
-                 end_date='2015-12-31', step=1, n_in=5, n_out=3):
+                 end_date='2015-12-31', step=1, n_in=10, n_out=5):
         """
 
         :param folder_dataset: str
