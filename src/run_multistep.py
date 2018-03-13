@@ -2,8 +2,8 @@
 Project:    stock_prediction
 File:       run_multistep.py
 Created by: louise
-On:         02/03/18
-At:         11:36 AM
+On:         12/03/18
+At:         4:40 PM
 """
 
 import torch
@@ -66,19 +66,19 @@ if __name__ == "__main__":
     learning_rate = 0.001
     batch_size = 16
     display_step = 100
-    max_epochs = 400
+    max_epochs = 500
     symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
     n_steps_encoder = 20  # time steps, length of time window
     n_output = n_stocks
-    T = 10
+    T = 5
     start_date = '2013-01-01'
     end_date = '2013-12-31'
-    n_step_data = 1
+    n_step_data = 5
     n_out = 5
-    n_in = T
+    n_in = 15
 
     fn_base = "multi_step_nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
               "_" + end_date
@@ -90,9 +90,8 @@ if __name__ == "__main__":
                           symbols=symbols,
                           start_date=start_date,
                           end_date=end_date,
-                          T=T,
                           step=n_step_data,
-                          n_in=T,
+                          n_in=n_in,
                           n_out=5)
     train_loader = DataLoader(dset,
                               batch_size=batch_size,
@@ -104,8 +103,8 @@ if __name__ == "__main__":
     print(x)
     # Network Parameters
     model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, training=True, n_in=T, n_out=n_out).cuda()
-    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
-    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.1)  # n
+    scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.)
 
     # loss function
     criterion = nn.MSELoss(size_average=False).cuda()
@@ -146,8 +145,8 @@ if __name__ == "__main__":
             gt = np.array(gt)
             x = np.array(range(predicted.shape[0]))
             h = plt.figure()
-            plt.plot(x, predicted[:, 0], label="predictions")
-            plt.plot(x, gt[:, 0], label="true")
+            plt.plot(x, predicted[:, 0], label="predictions", color=cm.Blues(300))
+            plt.plot(x, gt[:, 0], label="true", color=cm.Blues(100))
             plt.legend()
             plt.show()
 
@@ -173,18 +172,18 @@ if __name__ == "__main__":
     end_date = '2017-10-31'
     dtest = SP500Multistep('data/sandp500/individual_stocks_5yr',
                            symbols=symbols,
-                            start_date=start_date,
-                             end_date=end_date,
-                             T=T,
-                             step=n_step_data,
-                           n_in=T
+                           start_date=start_date,
+                           end_date=end_date,
+                           step=n_step_data,
+                           n_in=n_in,
+                           n_out=n_out
                            )
     test_loader = DataLoader(dtest,
-                              batch_size=batch_size_pred,
-                              shuffle=False,
-                              num_workers=4,
-                              pin_memory=True  # CUDA only
-                              )
+                             batch_size=batch_size_pred,
+                             shuffle=False,
+                             num_workers=4,
+                             pin_memory=True  # CUDA only
+                             )
 
 
     # Create list of n_stocks lists for storing predictions and GT
@@ -204,8 +203,8 @@ if __name__ == "__main__":
             for i in range(batch_size_pred):
                 s = 0
                 for stock in symbols:
-                    predictions[s].append(output.data[i, 0, s, -1])
-                    gts[s].append(target.data[i, 0, s, -1])
+                    predictions[s].append(output.data[i, 0, s, -n_out:])
+                    gts[s].append(target.data[i, 0, s, -n_out:])
                     s += 1
                 k += 1
 

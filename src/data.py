@@ -77,12 +77,11 @@ class SP500(Dataset):
 
 
 class SP500Multistep(Dataset):
-    def __init__(self, folder_dataset, T=10, symbols=['AAPL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
+    def __init__(self, folder_dataset, symbols=['AAPL'], use_columns=['Date', 'Close'], start_date='2012-01-01',
                  end_date='2015-12-31', step=1, n_in=10, n_out=5):
         """
 
         :param folder_dataset: str
-        :param T: int
         :param symbols: list of str
         :param use_columns: bool
         :param start_date: str, date format YYY-MM-DD
@@ -105,7 +104,6 @@ class SP500Multistep(Dataset):
         if len(use_columns)==0:
             print("No column was specified")
             return
-        self.T = T
 
         # Create output dataframe
         self.dates = pd.date_range(self.start_date, self.end_date)
@@ -127,12 +125,10 @@ class SP500Multistep(Dataset):
         self.train_data = self.scaler.fit_transform(self.numpy_data)
 
         self.chunks = []
-        self.chunks_data = torch.FloatTensor(self.train_data).unfold(0, n_in, step)
-        data_tmp = self.train_data[n_in:, :]
-        self.chunks_target = torch.FloatTensor(data_tmp).unfold(0, n_out, step)
+        self.chunks_data = torch.FloatTensor(self.train_data).unfold(0, n_in+n_out, step)
         k = 0
-        while k < min(self.chunks_data.size(0), self.chunks_target.size(0)):
-            self.chunks.append([self.chunks_data[k, :, :], self.chunks_target[k, :, :]])
+        while k < self.chunks_data.size(0):
+            self.chunks.append([self.chunks_data[k, :, :n_in], self.chunks_data[k, :, n_in:]])
             k += 1
 
     def __getitem__(self, index):

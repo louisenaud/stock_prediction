@@ -46,11 +46,12 @@ if __name__ == "__main__":
     start_date = '2013-01-01'
     end_date = '2013-12-31'
     n_step_data = 10
+    weight_decay = 0.01
 
-    fn_base = "nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
+    fn_base = "nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_weight_decay_" + \
+              str(weight_decay) + "_train_" + start_date + \
               "_" + end_date
 
-    print(fn_base)
 
     # training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
@@ -68,8 +69,8 @@ if __name__ == "__main__":
     x, y = train_loader.dataset[0]
     print(x.shape)
     # Network Parameters
-    model = DilatedNet2D(num_securities=n_stocks, T=T, training=True).cuda()
-    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
+    model = DilatedNet2D(T=T,  hidden_size=64, dilation=2).cuda()
+    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
     # loss function
@@ -83,12 +84,12 @@ if __name__ == "__main__":
         gt = []
         for batch_idx, (data, target) in enumerate(train_loader):
             data = Variable(data.permute(0, 2, 1)).unsqueeze_(1).contiguous()
-            target = Variable(target.unsqueeze_(0))
+            target = Variable(target.unsqueeze_(1))
             if use_cuda:
                 data = data.cuda()
                 target = target.cuda()
             optimizer.zero_grad()
-            if target.data.size()[1] == batch_size:
+            if target.data.size()[0] == batch_size:
                 output = model(data)
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
@@ -96,7 +97,7 @@ if __name__ == "__main__":
                 optimizer.step()
                 for k in range(batch_size):
                     predicted.append(output.data[k, 0, :].cpu().numpy())
-                    gt.append(target.data[:, k, 0].cpu().numpy())
+                    gt.append(target.data[k, 0, :].cpu().numpy())
             it += 1
 
         print("Epoch = ", i)
