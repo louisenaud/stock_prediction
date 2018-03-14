@@ -134,11 +134,11 @@ if __name__ == "__main__":
                   end_date=end_date,
                   T=T)
     test_loader = DataLoader(dtest,
-                              batch_size=batch_size_pred,
-                              shuffle=False,
-                              num_workers=4,
-                              pin_memory=True  # CUDA only
-                              )
+                             batch_size=batch_size_pred,
+                             shuffle=False,
+                             num_workers=4,
+                             pin_memory=True  # CUDA only
+                             )
 
 
     # Create list of n_stocks lists for storing predictions and GT

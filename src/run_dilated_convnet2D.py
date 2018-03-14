@@ -149,7 +149,6 @@ if __name__ == "__main__":
                               pin_memory=True  # CUDA only
                               )
 
-
     # Create list of n_stocks lists for storing predictions and GT
     predictions = [[] for i in repeat(None, len(symbols))]
     gts = [[] for i in repeat(None, len(symbols))]
