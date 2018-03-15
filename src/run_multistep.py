@@ -17,7 +17,6 @@ from tensorboardX import SummaryWriter
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm
 import matplotlib.dates as mdates
 from matplotlib.dates import MonthLocator, DateFormatter
 
@@ -51,7 +50,6 @@ if __name__ == "__main__":
     fn_base = "multi_step_nstocks_" + str(n_stocks) + "_epochs_" + str(max_epochs) + "_T_" + str(T) + "_train_" + start_date + \
               "_" + end_date
 
-    print(fn_base)
 
     # training data
     dset = SP500Multistep('data/sandp500/individual_stocks_5yr',
@@ -67,10 +65,8 @@ if __name__ == "__main__":
                               num_workers=4,
                               pin_memory=True  # CUDA only
                               )
-    x, y = train_loader.dataset[0]
-    print(x)
-    # Network Parameters
-    model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, training=True, n_in=n_in, n_out=n_out).cuda()
+    # Network Definition + Optimizer + Scheduler for a potential decrease in learning rate
+    model = DilatedNet2DMultistep(num_securities=n_stocks, T=T, n_in=n_in, n_out=n_out).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
@@ -78,7 +74,6 @@ if __name__ == "__main__":
     criterion = nn.MSELoss(size_average=True).cuda()
 
     losses = []
-    it = 0
     for i in range(max_epochs):
         loss_ = 0.
         predicted = []
@@ -99,7 +94,6 @@ if __name__ == "__main__":
                 for k in range(batch_size):
                     predicted.append(output.data[k, 0, :, :].cpu().numpy())
                     gt.append(target.data[k, 0, :, :].cpu().numpy())
-            it += 1
 
         print("Epoch = ", i)
         print("Loss = ", loss_)
@@ -118,7 +112,7 @@ if __name__ == "__main__":
             for t in range(len(predicted)):
                 xaxis = [x for x in range(t*n_step_data, t*n_step_data + n_out)]
                 yaxis = predicted[t][0, :]
-                plt.plot(xaxis, yaxis)  # , color=cm.Blues(300)
+                plt.plot(xaxis, yaxis)
             plt.legend()
             plt.show()
 
@@ -133,11 +127,11 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
+    ##########################################################################################
     # TEST
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     batch_size_pred = batch_size
-    #symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
 
     # Create test data set
     start_date = '2013-01-01'
@@ -175,18 +169,8 @@ if __name__ == "__main__":
                 predictions.append(output.data[i, 0, :, :].cpu().numpy())
                 gts.append(target.data[i, 0, :, :].cpu().numpy())
 
-
-
     # Plot results
     # Convert lists to np array for plot, and rescaling to original data
-
-    # if len(symbols) == 1:
-    #     pred = dtest.scaler.inverse_transform(np.array(predictions[0]).reshape((len(predictions[0]), 1)))
-    #     gt = dtest.scaler.inverse_transform(np.array(gts[0]).reshape(len(gts[0]), 1))
-    # if len(symbols) >= 2:
-    #     p = np.array(predictions)
-    #     pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
-    #     gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
 
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, len(predictions))]
     x = np.array(x)
@@ -203,9 +187,9 @@ if __name__ == "__main__":
         for t in range(len(predictions)):
             xaxis = [x for x in range(t * n_step_data, t * n_step_data + n_out)]
             yaxis = predictions[t, s, :]
-            plt.plot(xaxis, yaxis)  # , color=cm.Blues(300)
+            plt.plot(xaxis, yaxis)
 
-        #
+        #TODO(louise) add dates on axis for next post
         # ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
         # ax.xaxis.set_major_locator(months)
         # ax.xaxis.set_major_formatter(monthsFmt)

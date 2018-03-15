@@ -5,28 +5,29 @@ Created by: louise
 On:         26/02/18
 At:         5:34 PM
 """
-
+from itertools import repeat
+# torch imports
 import torch
 from torch import nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch import optim
 from torch.optim import lr_scheduler
-
+# Tensorboard import
 from tensorboardX import SummaryWriter
-
+# Numpy, Matplotlib imports
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib.dates as mdates
 from matplotlib.dates import MonthLocator, DateFormatter
-from itertools import repeat
-
+# Local imports
 from models.dilated_cnn import DilatedNet2D
 from data import SP500
 
 
 if __name__ == "__main__":
+    # Use cuda if available
     use_cuda = torch.cuda.is_available()
     # Keep track of loss in tensorboard
     writer = SummaryWriter()
@@ -52,8 +53,7 @@ if __name__ == "__main__":
               str(weight_decay) + "_train_" + start_date + \
               "_" + end_date
 
-
-    # training data
+    # Training data
     dset = SP500('data/sandp500/individual_stocks_5yr',
                  symbols=symbols,
                  start_date=start_date,
@@ -64,47 +64,54 @@ if __name__ == "__main__":
                               batch_size=batch_size,
                               shuffle=True,
                               num_workers=4,
-                              pin_memory=True  # CUDA only
+                              pin_memory=use_cuda  # CUDA only
                               )
-    x, y = train_loader.dataset[0]
-    print(x.shape)
-    # Network Parameters
-    model = DilatedNet2D(T=T,  hidden_size=64, dilation=2).cuda()
+
+    # Network Definition + Optimizer + Scheduler
+    model = DilatedNet2D(T=T,  hidden_size=64, dilation=2)
+    if use_cuda:
+        model = model.cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
     # loss function
     criterion = nn.MSELoss(size_average=False).cuda()
-
+    # Store successive losses
     losses = []
-    it = 0
     for i in range(max_epochs):
         loss_ = 0.
         predicted = []
         gt = []
+        # Go through training data set
         for batch_idx, (data, target) in enumerate(train_loader):
             data = Variable(data.permute(0, 2, 1)).unsqueeze_(1).contiguous()
             target = Variable(target.unsqueeze_(1))
             if use_cuda:
                 data = data.cuda()
                 target = target.cuda()
-            optimizer.zero_grad()
             if target.data.size()[0] == batch_size:
+                # Set gradient of optimizer to 0
+                optimizer.zero_grad()
+                # Compute predictions
                 output = model(data)
+                # Compute loss
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
+                # Backpropagation
                 loss.backward()
+                # Gradient descent step
                 optimizer.step()
+                # Store current results for visual check
                 for k in range(batch_size):
                     predicted.append(output.data[k, 0, :].cpu().numpy())
                     gt.append(target.data[k, 0, :].cpu().numpy())
-            it += 1
 
         print("Epoch = ", i)
         print("Loss = ", loss_)
         losses.append(loss_)
+        # Store for display in Tensorboard
         writer.add_scalar("loss_epoch", loss_, i)
-
+        # Apply step of scheduler for learning rate change
         scheduler_model.step()
         # Plot current predictions
         if i % display_step == 0:
@@ -117,37 +124,38 @@ if __name__ == "__main__":
             plt.legend()
             plt.show()
 
+    # Save trained models
     torch.save(model, 'conv2d_' + fn_base + '.pkl')
-
+    # Plot training loss
     h = plt.figure()
-    x = xrange(len(losses))
-    plt.plot(x, np.array(losses), label="loss")
+    x = range(len(losses))
+    plt.plot(np.array(x), np.array(losses), label="loss")
     plt.xlabel("Time")
-    plt.ylabel("Stock Price")
+    plt.ylabel("Training loss")
     plt.savefig("loss_" + fn_base + '.png')
     plt.legend()
     plt.show()
 
+    ##########################################################################################
     # TEST
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
-    batch_size_pred = 4
-    #symbols = ['GOOGL', 'AAPL', 'AMZN', 'FB', 'ZION', 'NVDA', 'GS']
+    batch_size_pred = batch_size
 
     # Create test data set
     start_date = '2013-01-01'
     end_date = '2017-10-31'
     dtest = SP500('data/sandp500/individual_stocks_5yr',
-                 symbols=symbols,
-                 start_date=start_date,
-                 end_date=end_date,
-                 T=T)
+                  symbols=symbols,
+                  start_date=start_date,
+                  end_date=end_date,
+                  T=T)
     test_loader = DataLoader(dtest,
-                              batch_size=batch_size_pred,
-                              shuffle=False,
-                              num_workers=4,
-                              pin_memory=True  # CUDA only
-                              )
+                             batch_size=batch_size_pred,
+                             shuffle=False,
+                             num_workers=4,
+                             pin_memory=True  # CUDA only
+                             )
 
     # Create list of n_stocks lists for storing predictions and GT
     predictions = [[] for i in repeat(None, len(symbols))]
@@ -180,7 +188,7 @@ if __name__ == "__main__":
         p = np.array(predictions)
         pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
         gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
-
+    # Plot for all stocks in
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
     x = np.array(x)
     months = MonthLocator(range(1, 10), bymonthday=1, interval=3)

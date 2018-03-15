@@ -21,7 +21,7 @@ import matplotlib.dates as mdates
 from matplotlib.dates import MonthLocator, DateFormatter
 from itertools import repeat
 
-from lstm import LSTM
+from models.lstm import LSTM
 from data import SP500
 
 
@@ -34,8 +34,8 @@ if __name__ == "__main__":
     learning_rate = 0.001
     batch_size = 16
     display_step = 50
-    max_epochs = 1000
-    symbols = ['GOOGL', 'AAPL']
+    max_epochs = 100
+    symbols = ['GOOGL', 'AAPL', 'AMZN']
     n_stocks = len(symbols)
     n_hidden1 = 128
     n_hidden2 = 128
@@ -62,34 +62,40 @@ if __name__ == "__main__":
                               num_workers=4,
                               pin_memory=True  # CUDA only
                               )
-    x, y = train_loader.dataset[0]
-    print(x.shape)
-    # Network Parameters
-    model = LSTM(hidden_size=128, hidden_size2=300, num_securities=n_stocks, dropout=0.0, n_layers=2, T=T, training=True).cuda()
+
+    # Network Definition + Optimizer + Scheduler
+    model = LSTM(hidden_size=n_hidden1, hidden_size2=n_hidden2, num_securities=n_stocks, dropout=0.2, n_layers=2, T=T).cuda()
     optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=0.0)  # n
     scheduler_model = lr_scheduler.StepLR(optimizer, step_size=1, gamma=1.0)
 
     # loss function
     criterion = nn.MSELoss(size_average=True).cuda()
-
+    # Store successive losses
     losses = []
     it = 0
     for i in range(max_epochs):
         loss_ = 0.
+        # Store current predictions
         predicted = []
         gt = []
+        # Go through training data set
         for batch_idx, (data, target) in enumerate(train_loader):
             data = Variable(data.permute(1, 0, 2)).contiguous()
             target = Variable(target.unsqueeze_(0))
             if use_cuda:
                 data = data.cuda()
                 target = target.cuda()
-            optimizer.zero_grad()
+
             if target.data.size()[1] == batch_size:
+                # Set optimizer gradient to 0
+                optimizer.zero_grad()
+                # Compute predictions
                 output = model(data)
                 loss = criterion(output, target)
                 loss_ += loss.data[0]
+                # Backpropagation
                 loss.backward()
+                # Gradient descent step
                 optimizer.step()
                 for k in range(batch_size):
                     predicted.append(output.data[k, 0])
@@ -99,9 +105,11 @@ if __name__ == "__main__":
         print("Epoch = ", i)
         print("Loss = ", loss_)
         losses.append(loss_)
+        # Store loss for display in Tensorboard
         writer.add_scalar("loss_epoch", loss_, i)
-
+        # Scheduler step for decrease of learning rate
         scheduler_model.step()
+        # Visual check
         # Plot current predictions
         if i % display_step == 0:
             predicted = np.array(predicted).reshape(-1, 1)
@@ -112,15 +120,16 @@ if __name__ == "__main__":
             plt.plot(x, gt[:, 0], label="true")
             plt.legend()
             plt.show()
-
+    # Save trained model
     torch.save(model, 'lstm' + fn_base + '.pkl')
-
+    # Plot training loss
     plt.figure()
     x = xrange(len(losses))
     plt.plot(x, np.array(losses), label="loss")
     plt.legend()
     plt.show()
 
+    ##########################################################################################
     # TEST
     predictions = np.zeros((len(train_loader.dataset.chunks), n_stocks))
     ground_tr = np.zeros((len(train_loader.dataset.chunks), n_stocks))
@@ -139,7 +148,6 @@ if __name__ == "__main__":
                              num_workers=4,
                              pin_memory=True  # CUDA only
                              )
-
 
     # Create list of n_stocks lists for storing predictions and GT
     predictions = [[] for i in repeat(None, len(symbols))]
@@ -162,23 +170,22 @@ if __name__ == "__main__":
                     s += 1
             k += 1
 
-
     # Plot results
     # Convert lists to np array for plot, and rescaling to original data
     if len(symbols) == 1:
         pred = dtest.scaler.inverse_transform(np.array(predictions[0]).reshape((len(predictions[0]), 1)))
         gt = dtest.scaler.inverse_transform(np.array(gts[0]).reshape(len(gts[0]), 1))
-    if len(symbols) == 2:  #TODO(Louise) automate this part
-        pred = dtest.scaler.inverse_transform(np.column_stack((predictions[0], predictions[1])))
-        gt = dtest.scaler.inverse_transform(np.column_stack((gts[0], gts[1])))
-    if len(symbols) == 3:
-        pred = dtest.scaler.inverse_transform(np.column_stack((predictions[0], predictions[1], predictions[2])))
-        gt = dtest.scaler.inverse_transform(np.column_stack((gts[0], gts[1], gts[2])))
-
+    if len(symbols) >= 2:
+        p = np.array(predictions)
+        pred = dtest.scaler.inverse_transform(np.array(predictions).transpose())
+        gt = dtest.scaler.inverse_transform(np.array(gts).transpose())
+    # Plots for all stocks in list of symbols
+    x = np.array(range(pred.shape[0]))
     x = [np.datetime64(start_date) + np.timedelta64(x, 'D') for x in range(0, pred.shape[0])]
     x = np.array(x)
-    months = MonthLocator(range(1, 10), bymonthday=1, interval=3)
+    months = MonthLocator(range(1, 10), bymonthday=1, interval=1)
     monthsFmt = DateFormatter("%b '%y")
+
     s = 0
     for stock in symbols:
         fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
